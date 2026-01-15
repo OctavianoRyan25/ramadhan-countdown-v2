@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/public/images/moon-star.png",
   },
+  other: {
+    "Content-Security-Policy": "upgrade-insecure-requests",
+  },
 };
 
 export default function RootLayout({
