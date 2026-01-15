@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"; // Asumsi Anda memiliki utilitas untuk menggab
 const CITIES_API_URL =
   "https://raw.githubusercontent.com/lakuapik/jadwalsholatorg/master/kota.json";
 const PRAYER_SCHEDULE_BASE_URL =
-  "https://cdn.statically.io/gh/lakuapik/jadwalsholatorg/master/adzan";
+  "https://raw.githubusercontent.com/lakuapik/jadwalsholatorg/master/adzan";
 
 // --- Tipe Data Disesuaikan dengan API Baru ---
 type PrayerTime = {
