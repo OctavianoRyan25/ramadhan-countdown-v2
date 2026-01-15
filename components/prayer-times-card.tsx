@@ -86,7 +86,7 @@ export default function PrayerTimesCard() {
 
   const today = getTodayDate();
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-indexed
+  const currentMonth = String(new Date().getMonth() + 1).padStart(2, "0");
 
   // 1. Fetch Daftar Kota (City Slugs)
   const {
