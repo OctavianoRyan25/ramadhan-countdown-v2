@@ -1,360 +1,290 @@
 "use client";
 
-import useSWR from "swr";
-import { useEffect, useState, useMemo } from "react";
-// Mengimport ikon dari lucide-react untuk UI/UX yang lebih baik
-import { Clock, RefreshCw, MapPin, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"; // Menggunakan komponen Select dari shadcn/ui
-
-import { cn } from "@/lib/utils"; // Asumsi Anda memiliki utilitas untuk menggabungkan class Tailwind
-
-// --- KONSTANTA API BARU (Menggunakan CDN Statically untuk performa) ---
-const CITIES_API_URL =
-  "https://raw.githubusercontent.com/lakuapik/jadwalsholatorg/master/kota.json";
-const PRAYER_SCHEDULE_BASE_URL =
-  "https://raw.githubusercontent.com/lakuapik/jadwalsholatorg/master/adzan";
-
-// --- Tipe Data Disesuaikan dengan API Baru ---
-type PrayerTime = {
-  imsyak?: string;
-  shubuh?: string; // Fajr
-  terbit?: string; // Sunrise
-  dhuha?: string; // Duha
-  dzuhur?: string; // Dhuhr
-  ashr?: string; // Asr
-  magrib?: string; // Maghrib
-  isya?: string;
-  tanggal: string; // e.g., "2019-12-01"
-  [key: string]: string | undefined;
-};
-
-// Location data is now just an array of city slugs
-type CityList = string[];
-
-// Prayer response is an array of daily times
-type PrayerResponse = PrayerTime[] | null;
-
-// --- Helper Functions ---
-
-const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error(`Request failed: ${r.status}`);
-    return r.json();
-  });
-
-/** Mendapatkan tanggal hari ini dalam format YYYY-MM-DD */
-const getTodayDate = () => new Date().toISOString().split("T")[0];
-
-/**
- * Menghitung waktu sholat berikutnya yang akan datang berdasarkan kunci API.
- * Menggunakan kunci API baru: shubuh, dzuhur, ashr, magrib, isya.
- */
-const getNextPrayer = (times: Record<string, string>): string | null => {
-  const now = new Date();
-  const nowTimeInMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const prayerKeys = ["imsyak", "shubuh", "dzuhur", "ashr", "magrib", "isya"];
-
-  for (const key of prayerKeys) {
-    const timeStr = times[key];
-    if (timeStr) {
-      const [hour, minute] = timeStr.split(":").map(Number);
-      const prayerTimeInMinutes = hour * 60 + minute;
-      if (prayerTimeInMinutes > nowTimeInMinutes) {
-        return key;
-      }
-    }
-  }
-  // Jika semua terlewat, waktu sholat berikutnya adalah shubuh keesokan harinya
-  return prayerKeys.find((key) => key in times) || null;
-};
-
-// --- Komponen Utama ---
+  MapPin,
+  LocateFixed,
+  Clock,
+  Check,
+  ChevronsUpDown,
+  Bell,
+  Volume2,
+  Calendar,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import {
+  usePrayer,
+  PRAYER_LABELS,
+  formatCityName,
+} from "@/lib/prayer-context";
+import { IslamicGeometricPattern } from "@/components/islamic-patterns";
 
 export default function PrayerTimesCard() {
-  // State tunggal untuk lokasi: menggunakan city slug
-  const [selectedCitySlug, setSelectedCitySlug] = useState<string>("semarang");
-
-  const today = getTodayDate();
-  const currentYear = new Date().getFullYear();
-  const currentMonth = String(new Date().getMonth() + 1).padStart(2, "0");
-
-  // 1. Fetch Daftar Kota (City Slugs)
   const {
-    data: citySlugs,
-    isLoading: isLocationLoading,
-    error: locationError,
-  } = useSWR<CityList>(CITIES_API_URL, fetcher);
+    selectedCitySlug,
+    setSelectedCitySlug,
+    cityFullLabel,
+    uniqueCitySlugs,
+    isDetectingGeo,
+    geoMessage,
+    detectLocation,
+    todayTimes,
+    isPrayerLoading,
+    nextPrayer,
+    isAlarmEnabled,
+    toggleAlarm,
+    playReminderSound,
+    setIsImsakiyahModalOpen,
+  } = usePrayer();
 
-  // LOGIKA BARU: Filter duplikat kota menggunakan Set
-  const uniqueCitySlugs = useMemo(() => {
-    if (!citySlugs) return [];
-    // Mengubah array menjadi Set (menghilangkan duplikat) lalu kembali ke array
-    return Array.from(new Set(citySlugs));
-  }, [citySlugs]);
+  const [openCityPicker, setOpenCityPicker] = useState(false);
 
-  // 2. URL API untuk Jadwal Sholat Bulanan
-  const apiUrl = selectedCitySlug
-    ? `${PRAYER_SCHEDULE_BASE_URL}/${selectedCitySlug}/${currentYear}/${currentMonth}.json`
-    : null;
-
-  // 3. Fetch Waktu Sholat Utama
-  const {
-    data: monthlyPrayerData,
-    error: prayerError,
-    isLoading: isPrayerLoading,
-    mutate,
-  } = useSWR<PrayerResponse>(apiUrl, fetcher, { refreshInterval: 60_000 });
-
-  // --- LOGIKA EKSTRAKSI DAN PENAMPILAN ---
-
-  // Ambil data hari ini dari array bulanan
-  const times: PrayerTime | null = useMemo(() => {
-    if (monthlyPrayerData && Array.isArray(monthlyPrayerData)) {
-      return monthlyPrayerData.find((p) => p.tanggal === today) || null;
-    }
-    return null;
-  }, [monthlyPrayerData, today]);
-
-  const nextPrayer = useMemo(() => {
-    if (times && typeof times === "object") {
-      return getNextPrayer(times as Record<string, string>);
-    }
-    return null;
-  }, [times]);
-
-  // Format slug menjadi nama kota yang rapi untuk ditampilkan
-  const formatCityName = (slug: string) =>
-    slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
-  const currentCityDisplay = formatCityName(selectedCitySlug);
-
-  // --- HANDLERS ---
-
-  const onCityChange = (value: string) => {
-    setSelectedCitySlug(value);
-    // SWR akan otomatis me-revalidate karena apiUrl berubah
-  };
-
-  const prayerOrder: { key: keyof PrayerTime; label: string }[] = [
-    { key: "imsyak", label: "Imsak" },
-    { key: "shubuh", label: "Subuh (Fajr)" },
-    { key: "terbit", label: "Terbit" },
-    { key: "dhuha", label: "Dhuha" },
-    { key: "dzuhur", label: "Dzuhur" },
-    { key: "ashr", label: "Ashar" },
-    { key: "magrib", label: "Maghrib" },
-    { key: "isya", label: "Isya" },
-  ];
+  const formattedDateId = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
 
   return (
-    <Card
-      className={cn(
-        "relative w-full overflow-hidden border rounded-lg",
-        isPrayerLoading && "ring-2 ring-green-500/50"
-      )}
+    <section
+      id="jadwal-sholat"
+      className="relative overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute right-2 top-0 h-12 w-12 opacity-70 animate-twinkle"
-      >
-        <img
-          src="/images/lantern.png"
-          alt=""
-          aria-hidden="true"
-          className="h-full w-full"
-        />
-      </div>
+      <IslamicGeometricPattern
+        id="prayer-girih"
+        className="text-primary opacity-[0.03] dark:opacity-[0.04]"
+      />
 
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-3 top-16 h-10 w-10 opacity-80 animate-sway"
-      >
-        <svg viewBox="0 0 48 48" className="h-full w-full">
-          <g className="fill-accent">
-            <rect
-              x="14"
-              y="8"
-              width="12"
-              height="12"
-              transform="rotate(45 20 14)"
-              rx="1"
-            />
-            <rect
-              x="22"
-              y="16"
-              width="12"
-              height="12"
-              transform="rotate(45 28 22)"
-              rx="1"
-            />
-          </g>
-          <path
-            d="M28 33v8m-4-4h8"
-            className="stroke-primary"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-20 md:h-24 opacity-15"
-      >
-        <svg
-          viewBox="0 0 800 200"
-          preserveAspectRatio="none"
-          className="h-full w-full"
-        >
-          <path
-            d="M0,170 L60,170 C90,140 120,130 160,140 C200,150 230,150 260,130 C290,110 310,100 350,110 C390,120 420,120 450,110 C480,100 510,90 540,110 C570,130 600,140 640,130 C680,120 710,130 740,160 L800,160 L800,200 L0,200 Z"
-            className="fill-primary"
-          />
-          {/* domes/minarets */}
-          <g className="fill-primary">
-            <rect x="110" y="110" width="12" height="40" />
-            <rect x="500" y="100" width="12" height="50" />
-            <circle cx="116" cy="108" r="8" />
-            <circle cx="506" cy="98" r="10" />
-          </g>
-        </svg>
-      </div>
-      <CardHeader className="relative flex flex-col space-y-3 z-10">
-        <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-col space-y-1">
-            <CardTitle className="text-xl font-bold text-green-700">
-              Waktu Sholat Hari Ini
-            </CardTitle>
-            <p className="text-sm text-primary font-medium">
-              <MapPin className="h-3 w-3 inline mr-1" /> {currentCityDisplay}
-            </p>
+      <div className="relative z-10 p-5 sm:p-7 md:p-8">
+        {/* Top Bar: Title, Location Display & Location Controls */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border/80 pb-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Jadwal Sholat & Imsakiyah Hari Ini</span>
+            </div>
+            <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              {cityFullLabel}
+            </h2>
+            <p className="text-xs text-muted-foreground">{formattedDateId}</p>
+          </div>
+
+          {/* Location Switcher & GPS Auto-Detect */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Searchable City Combobox */}
+            <Popover open={openCityPicker} onOpenChange={setOpenCityPicker}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCityPicker}
+                  className="w-full sm:w-[230px] justify-between rounded-xl bg-background/90 text-xs sm:text-sm font-medium"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate">
+                      {formatCityName(selectedCitySlug)}
+                    </span>
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[260px] p-0" align="end">
+                <Command>
+                  <CommandInput placeholder="Cari kota atau kabupaten..." />
+                  <CommandList className="max-h-[280px]">
+                    <CommandEmpty>Kota tidak ditemukan.</CommandEmpty>
+                    <CommandGroup heading={`Daftar Kota (${uniqueCitySlugs.length})`}>
+                      {uniqueCitySlugs.map((slug) => (
+                        <CommandItem
+                          key={slug}
+                          value={slug.replace(/-/g, " ")}
+                          onSelect={() => {
+                            setSelectedCitySlug(slug);
+                            setOpenCityPicker(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4 text-primary",
+                              selectedCitySlug === slug
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {formatCityName(slug)}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* GPS Auto-Detect Button */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={detectLocation}
+              disabled={isDetectingGeo}
+              className="rounded-xl text-xs font-medium"
+              title="Deteksi lokasi otomatis menggunakan GPS browser"
+            >
+              {isDetectingGeo ? (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                <LocateFixed className="mr-1.5 h-3.5 w-3.5 text-primary" />
+              )}
+              <span>Deteksi Lokasi</span>
+            </Button>
+
+            {/* 30-Day Imsakiyah Table Trigger */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsImsakiyahModalOpen(true)}
+              className="rounded-xl text-xs font-medium"
+            >
+              <Calendar className="mr-1.5 h-3.5 w-3.5 text-primary" />
+              <span>Tabel 30 Hari</span>
+            </Button>
           </div>
         </div>
 
-        {/* Pilihan kota */}
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Pilih Kota/Kabupaten untuk menampilkan jadwal sholat.
-          </p>
-          {isLocationLoading ? (
-            <div className="flex items-center text-sm text-green-500 justify-center h-10">
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Memuat daftar
-              kota...
-            </div>
-          ) : locationError ? (
-            <div className="text-sm text-red-500 border border-red-300 bg-red-50 p-3 rounded-lg">
-              Gagal memuat daftar kota. Harap muat ulang.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="city-select" className="text-xs">
-                Kota / Kabupaten (Total {uniqueCitySlugs?.length || 0} Kota)
-              </Label>
-              <Select value={selectedCitySlug} onValueChange={onCityChange}>
-                <SelectTrigger className="w-full h-10 pl-10 relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-400 pointer-events-none" />
-                  <SelectValue placeholder="Pilih kota..." className="pl-2" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {uniqueCitySlugs.map((slug) => (
-                    <SelectItem key={slug} value={slug}>
-                      {formatCityName(slug)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-      </CardHeader>
+        {geoMessage && (
+          <div className="mt-3 rounded-lg bg-primary/10 px-3.5 py-2 text-xs font-medium text-primary">
+            {geoMessage}
+          </div>
+        )}
 
-      <CardContent className="relative z-10 space-y-6">
-        <div className="rounded-xl border border-green-300 p-4 bg-green-50/80 shadow-inner backdrop-blur-sm">
-          {isPrayerLoading && (
-            <div className="flex items-center justify-center py-4 text-sm text-green-600">
-              <Clock className="h-4 w-4 mr-2 animate-spin" /> Memuat jadwal
-              sholat ({currentCityDisplay}, {currentMonth}/{currentYear})…
-            </div>
-          )}
-
-          {prayerError && (
-            <div className="text-center space-y-3 py-4">
-              <div className="text-sm text-red-500 font-medium">
-                <RefreshCw className="h-4 w-4 inline mr-2" /> Gagal memuat
-                jadwal sholat bulanan.
+        {/* Active Next Prayer Highlight Banner */}
+        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-primary/25 bg-primary/[0.06] dark:bg-primary/[0.08] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
+            </span>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">
+                Waktu Ibadah Berikutnya
               </div>
-              <Button onClick={() => mutate()} variant="destructive" size="sm">
-                Coba Lagi
+              <div className="text-sm sm:text-base font-semibold text-foreground">
+                Menuju <span className="text-primary">{nextPrayer.label}</span>{" "}
+                pukul{" "}
+                <span className="font-mono font-bold tabular-nums">
+                  {nextPrayer.time}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3">
+            <div className="rounded-lg border border-primary/30 bg-card px-3.5 py-1.5 font-mono text-sm font-bold tabular-nums text-primary shadow-2xs">
+              {nextPrayer.hoursLeft > 0 && `${nextPrayer.hoursLeft} jam `}
+              {nextPrayer.minutesLeft} menit {nextPrayer.secondsLeft} detik lagi
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant={isAlarmEnabled ? "default" : "outline"}
+                size="sm"
+                onClick={toggleAlarm}
+                className="h-8 rounded-lg text-xs"
+              >
+                <Bell className="mr-1.5 h-3.5 w-3.5" />
+                {isAlarmEnabled ? "Alarm Aktif" : "Ingatkan Saya"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => playReminderSound("adzan")}
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary"
+                title="Uji Suara Pengingat Adzan / Imsak"
+              >
+                <Volume2 className="h-4 w-4" />
               </Button>
             </div>
-          )}
-
-          {!times && !isPrayerLoading && !prayerError && (
-            <div className="text-sm text-muted-foreground py-4 text-center">
-              Tidak ada data sholat yang ditemukan untuk tanggal {today}.
-            </div>
-          )}
-
-          {times && !prayerError && (
-            <div className="grid grid-cols-3 gap-y-4 gap-x-2">
-              {prayerOrder.map(({ key, label }) => {
-                const timeValue = times[key];
-                const isNext = key === nextPrayer;
-                if (!timeValue) return null;
-                return (
-                  <div
-                    key={key}
-                    className={cn(
-                      "text-center p-3 rounded-xl transition-all duration-300 border border-transparent",
-                      isNext
-                        ? "bg-gradient-to-br from-green-300 to-lime-300 shadow-xl shadow-green-500/30 transform scale-105 border-green-500"
-                        : "hover:bg-green-100 hover:shadow-md"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "text-[10px]",
-                        isNext ? "text-green-900" : "text-green-500"
-                      )}
-                    >
-                      {isNext ? "Waktu Selanjutnya" : null}
-                    </div>
-                    <div
-                      className={cn(
-                        "text-[10px] sm:text-xs font-semibold uppercase",
-                        isNext ? "text-green-900" : "text-green-500"
-                      )}
-                    >
-                      {label}
-                    </div>
-                    <div
-                      className={cn(
-                        "text-base sm:text-lg font-extrabold",
-                        isNext ? "text-green-950" : "text-gray-700"
-                      )}
-                    >
-                      {timeValue}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          </div>
         </div>
 
-        <p className="text-xs text-muted-foreground pt-2 text-center">
-          Data Sholat untuk tanggal {today} | Sumber API Kota: {CITIES_API_URL}
-        </p>
-      </CardContent>
-    </Card>
+        {/* 8-Column Prayer Schedule Grid (Imsak, Subuh, Terbit, Dhuha, Dzuhur, Ashar, Maghrib, Isya) */}
+        <div
+          className={cn(
+            "mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8",
+            isPrayerLoading && "opacity-70 transition-opacity"
+          )}
+        >
+          {PRAYER_LABELS.map(({ key, label, shortDesc }) => {
+            const timeValue = todayTimes[key] || "--:--";
+            const isNext = nextPrayer.key === key && !nextPrayer.isTomorrow;
+            const isSpecial = key === "imsyak" || key === "magrib";
+
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "relative flex flex-col items-center justify-between rounded-xl border p-3.5 text-center transition-all",
+                  isNext
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/25"
+                    : isSpecial
+                      ? "border-[#C5A059]/40 bg-secondary/60 text-foreground hover:border-primary/40"
+                      : "border-border bg-background/70 text-foreground hover:border-primary/30"
+                )}
+              >
+                {isNext && (
+                  <span className="mb-1.5 rounded-full bg-background/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                     Berikutnya
+                  </span>
+                )}
+                {!isNext && isSpecial && (
+                  <span className="mb-1.5 rounded-full bg-[#C5A059]/20 text-[#9A742B] dark:text-[#D4AF37] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+                    {key === "imsyak" ? "Sahur" : "Iftar"}
+                  </span>
+                )}
+                {!isNext && !isSpecial && (
+                  <span className="mb-1.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {shortDesc}
+                  </span>
+                )}
+
+                <span
+                  className={cn(
+                    "text-xs font-semibold uppercase tracking-wider",
+                    isNext ? "text-primary-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {label}
+                </span>
+
+                <span
+                  className={cn(
+                    "mt-1.5 font-mono text-xl font-bold tabular-nums",
+                    isNext ? "text-primary-foreground" : "text-foreground"
+                  )}
+                >
+                  {timeValue}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

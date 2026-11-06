@@ -1,95 +1,65 @@
+import React from "react";
+import { PrayerProvider } from "@/lib/prayer-context";
+import HeaderNav from "@/components/header-nav";
 import CountdownDisplay from "@/components/countdown-display";
 import PrayerTimesCard from "@/components/prayer-times-card";
-import HeaderNav from "@/components/header-nav";
-import RamadanHero from "@/components/ramadan-hero";
-import { Card } from "@/components/ui/card";
+import RamadanTracker from "@/components/ramadan-tracker";
+import DailyDuas from "@/components/daily-duas";
 import HadithHighlight from "@/components/hadith-highlight";
-import ComingSoon from "@/components/coming-soon";
+import ImsakiyahModal from "@/components/imsakiyah-modal";
 
 export default function HomePage() {
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-start gap-8 p-0">
-      <HeaderNav />
+    <PrayerProvider>
+      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+        {/* Top Navigation Bar */}
+        <HeaderNav />
 
-      <section className="w-full">
-        <RamadanHero />
-      </section>
+        {/* Main Content Container */}
+        <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 py-8 sm:px-6 md:space-y-10 md:px-10 md:py-10">
+          {/* 1. Hero Focal Point: Hitung Mundur Ramadhan & Mode Imsakiyah */}
+          <CountdownDisplay />
 
-      <section className="w-full max-w-6xl px-6 md:px-10 pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="relative overflow-hidden">
-            <img
-              src="/images/oil-lamp.png"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute -top-1 z-50 -right-0.5 h-20 w-20 opacity-70"
-            />
-            <img
-              src="/images/lantern.svg"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute top-1 z-50 left-0.5 h-16 w-16 opacity-60"
-            />
-            <img
-              src="/images/mosque-silhouette.jpg"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute bottom-0 left-0 w-full opacity-25"
-            />
-            <img
-              src="/images/ketupat.png"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute top-2/5 z-50 left-0.5 h-16 w-16 opacity-60"
-            />
-            <img
-              src="/images/ketupat.png"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute top-1/5 z-50 right-0.5 h-16 w-16 opacity-60"
-            />
-            <img
-              src="/images/moon-star.png"
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute top-1/12 z-20 right-2/12 h-16 w-16 opacity-60 scale-50"
-            />
-            <div className="relative z-10 p-4 md:p-6">
-              <div id="countdown" className="w-full">
-                <CountdownDisplay />
-              </div>
-            </div>
-          </Card>
+          {/* 2. Jadwal Sholat & Imsakiyah Terintegrasi */}
+          <PrayerTimesCard />
 
-          <div className="relative z-10">
-            <div id="prayer" className="w-full">
-              <PrayerTimesCard />
-            </div>
+          {/* 3. High-Retention Companion Features: Target Amalan & Doa/Murottal Harian */}
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <RamadanTracker />
+            <DailyDuas />
           </div>
-        </div>
-        <div id="hadith" className="w-full my-6">
+
+          {/* 4. Mutiara Hadits Hari Ini */}
           <HadithHighlight />
-        </div>
+        </main>
 
-        <footer className="mt-8 text-center text-sm text-muted-foreground">
-          Data sumber waktu sholat: waktu-sholat.vercel.app
-        </footer>
-      </section>
+        {/* Modal Tabel & Unduh Jadwal Imsakiyah 30 Hari (PNG Story & PDF) */}
+        <ImsakiyahModal />
 
-      <section className="w-full">
-        <ComingSoon />
-      </section>
-
-      <section className="w-full mt-auto">
-        <Card className="w-full bg-primary text-primary-foreground">
-          <div className="mx-auto max-w-6xl px-6 md:px-10 py-6 md:py-8 text-center">
-            <p className="text-sm md:text-base">
-              &copy; {new Date().getFullYear()} Ramadhan Countdown & Prayer
-              Times. All rights reserved.
-            </p>
+        {/* Clean Editorial Footer */}
+        <footer className="mt-12 border-t border-border/80 bg-card/60 py-8">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 text-center sm:flex-row sm:text-left md:px-10">
+            <div>
+              <p className="font-serif text-base font-bold text-foreground">
+                Muslim<span className="text-primary">IN</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Dibuat dengan niat ibadah sebagai pendamping menyambut dan
+                menjalani bulan suci Ramadhan.
+              </p>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1 sm:text-right">
+              <p>
+                Sumber jadwal sholat: Kemenag RI / JadwalSholat.org • Kutipan
+                Hadits: Kutubus Sittah
+              </p>
+              <p>
+                &copy; {new Date().getFullYear()} MuslimIN Open Source Community
+              </p>
+            </div>
           </div>
-        </Card>
-      </section>
-    </main>
+        </footer>
+      </div>
+    </PrayerProvider>
   );
 }
