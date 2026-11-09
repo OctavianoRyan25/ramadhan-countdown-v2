@@ -78,6 +78,12 @@ export default function HeaderNav() {
             Jadwal Sholat
           </a>
           <a
+            href="#al-quran"
+            className="transition-colors hover:text-foreground font-semibold text-primary"
+          >
+            Al-Qur&apos;an 30 Juz
+          </a>
+          <a
             href="#amalan-tracker"
             className="transition-colors hover:text-foreground"
           >

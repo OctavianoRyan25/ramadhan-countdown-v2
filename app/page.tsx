@@ -3,6 +3,7 @@ import { PrayerProvider } from "@/lib/prayer-context";
 import HeaderNav from "@/components/header-nav";
 import CountdownDisplay from "@/components/countdown-display";
 import PrayerTimesCard from "@/components/prayer-times-card";
+import QuranSection from "@/components/quran-section";
 import RamadanTracker from "@/components/ramadan-tracker";
 import DailyDuas from "@/components/daily-duas";
 import HadithHighlight from "@/components/hadith-highlight";
@@ -23,13 +24,16 @@ export default function HomePage() {
           {/* 2. Jadwal Sholat & Imsakiyah Terintegrasi */}
           <PrayerTimesCard />
 
-          {/* 3. High-Retention Companion Features: Target Amalan & Doa/Murottal Harian */}
+          {/* 3. Al-Qur'an Digital 30 Juz & Bookmark/Catatan Selesai Baca */}
+          <QuranSection />
+
+          {/* 4. High-Retention Companion Features: Target Amalan & Doa/Murottal Harian */}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <RamadanTracker />
             <DailyDuas />
           </div>
 
-          {/* 4. Mutiara Hadits Hari Ini */}
+          {/* 5. Mutiara Hadits Hari Ini */}
           <HadithHighlight />
         </main>
 
